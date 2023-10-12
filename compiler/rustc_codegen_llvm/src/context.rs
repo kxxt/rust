@@ -186,12 +186,26 @@ pub unsafe fn create_module<'ll>(
         let cfg_llvm_root = option_env!("CFG_LLVM_ROOT").unwrap_or("");
         let custom_llvm_used = !cfg_llvm_root.trim().is_empty();
 
-        if !custom_llvm_used && target_data_layout != llvm_data_layout {
+        let mut checked_target_data_layout = target_data_layout.clone();
+        if llvm_version < (18, 0, 0) {
+            if sess.target.arch == "x86" || sess.target.arch == "x86_64" {
+                // LLVM 18 adjusts i128 to be 128-bit aligned on x86 variants.
+                // Earlier LLVMs leave this as default alignment, so remove it.
+                // We only modify the checked data layout because LLVM will generate incorrect code without it.
+                // This matches the behavior of Clang on earlier LLVMs, which reduces the likelihood of problems arising from it.
+                // This removal acts as our acknowledgement of this deviation between the default LLVM target spec and the one we are using.
+                //
+                // See https://reviews.llvm.org/D86310
+                checked_target_data_layout = checked_target_data_layout.replace("-i128:128", "");
+            }
+        }
+
+        if !custom_llvm_used && checked_target_data_layout != llvm_data_layout {
             bug!(
                 "data-layout for target `{rustc_target}`, `{rustc_layout}`, \
                   differs from LLVM target's `{llvm_target}` default layout, `{llvm_layout}`",
                 rustc_target = sess.opts.target_triple,
-                rustc_layout = target_data_layout,
+                rustc_layout = checked_target_data_layout,
                 llvm_target = sess.target.llvm_target,
                 llvm_layout = llvm_data_layout
             );
