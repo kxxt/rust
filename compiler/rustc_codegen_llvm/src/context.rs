@@ -30,6 +30,7 @@ use rustc_span::Span;
 use rustc_target::abi::{
     call::FnAbi, HasDataLayout, PointeeInfo, Size, TargetDataLayout, VariantIdx,
 };
+use rustc_target::spec::TargetTriple;
 use rustc_target::spec::{HasTargetSpec, RelocModel, Target, TlsModel};
 use smallvec::SmallVec;
 
@@ -203,13 +204,13 @@ pub unsafe fn create_module<'ll>(
     // to ensure intrinsic calls don't use it.
     if !sess.needs_plt() {
         let avoid_plt = c"RtLibUseGOT".as_ptr().cast();
-        llvm::LLVMRustAddModuleFlag(llmod, llvm::LLVMModFlagBehavior::Warning, avoid_plt, 1);
+        llvm::LLVMRustAddModuleFlagU32(llmod, llvm::LLVMModFlagBehavior::Warning, avoid_plt, 1);
     }
 
     // Enable canonical jump tables if CFI is enabled. (See https://reviews.llvm.org/D65629.)
     if sess.is_sanitizer_cfi_canonical_jump_tables_enabled() && sess.is_sanitizer_cfi_enabled() {
         let canonical_jump_tables = c"CFI Canonical Jump Tables".as_ptr().cast();
-        llvm::LLVMRustAddModuleFlag(
+        llvm::LLVMRustAddModuleFlagU32(
             llmod,
             llvm::LLVMModFlagBehavior::Override,
             canonical_jump_tables,
@@ -220,7 +221,7 @@ pub unsafe fn create_module<'ll>(
     // Enable LTO unit splitting if specified or if CFI is enabled. (See https://reviews.llvm.org/D53891.)
     if sess.is_split_lto_unit_enabled() || sess.is_sanitizer_cfi_enabled() {
         let enable_split_lto_unit = c"EnableSplitLTOUnit".as_ptr().cast();
-        llvm::LLVMRustAddModuleFlag(
+        llvm::LLVMRustAddModuleFlagU32(
             llmod,
             llvm::LLVMModFlagBehavior::Override,
             enable_split_lto_unit,
@@ -231,7 +232,7 @@ pub unsafe fn create_module<'ll>(
     // Add "kcfi" module flag if KCFI is enabled. (See https://reviews.llvm.org/D119296.)
     if sess.is_sanitizer_kcfi_enabled() {
         let kcfi = c"kcfi".as_ptr().cast();
-        llvm::LLVMRustAddModuleFlag(llmod, llvm::LLVMModFlagBehavior::Override, kcfi, 1);
+        llvm::LLVMRustAddModuleFlagU32(llmod, llvm::LLVMModFlagBehavior::Override, kcfi, 1);
     }
 
     // Control Flow Guard is currently only supported by the MSVC linker on Windows.
@@ -240,7 +241,7 @@ pub unsafe fn create_module<'ll>(
             CFGuard::Disabled => {}
             CFGuard::NoChecks => {
                 // Set `cfguard=1` module flag to emit metadata only.
-                llvm::LLVMRustAddModuleFlag(
+                llvm::LLVMRustAddModuleFlagU32(
                     llmod,
                     llvm::LLVMModFlagBehavior::Warning,
                     c"cfguard".as_ptr() as *const _,
@@ -249,7 +250,7 @@ pub unsafe fn create_module<'ll>(
             }
             CFGuard::Checks => {
                 // Set `cfguard=2` module flag to emit metadata and checks.
-                llvm::LLVMRustAddModuleFlag(
+                llvm::LLVMRustAddModuleFlagU32(
                     llmod,
                     llvm::LLVMModFlagBehavior::Warning,
                     c"cfguard".as_ptr() as *const _,
@@ -267,26 +268,26 @@ pub unsafe fn create_module<'ll>(
         };
 
         if sess.target.arch == "aarch64" {
-            llvm::LLVMRustAddModuleFlag(
+            llvm::LLVMRustAddModuleFlagU32(
                 llmod,
                 behavior,
                 c"branch-target-enforcement".as_ptr().cast(),
                 bti.into(),
             );
-            llvm::LLVMRustAddModuleFlag(
+            llvm::LLVMRustAddModuleFlagU32(
                 llmod,
                 behavior,
                 c"sign-return-address".as_ptr().cast(),
                 pac_ret.is_some().into(),
             );
             let pac_opts = pac_ret.unwrap_or(PacRet { leaf: false, key: PAuthKey::A });
-            llvm::LLVMRustAddModuleFlag(
+            llvm::LLVMRustAddModuleFlagU32(
                 llmod,
                 behavior,
                 c"sign-return-address-all".as_ptr().cast(),
                 pac_opts.leaf.into(),
             );
-            llvm::LLVMRustAddModuleFlag(
+            llvm::LLVMRustAddModuleFlagU32(
                 llmod,
                 behavior,
                 c"sign-return-address-with-bkey".as_ptr().cast(),
@@ -302,7 +303,7 @@ pub unsafe fn create_module<'ll>(
 
     // Pass on the control-flow protection flags to LLVM (equivalent to `-fcf-protection` in Clang).
     if let CFProtection::Branch | CFProtection::Full = sess.opts.unstable_opts.cf_protection {
-        llvm::LLVMRustAddModuleFlag(
+        llvm::LLVMRustAddModuleFlagU32(
             llmod,
             llvm::LLVMModFlagBehavior::Override,
             c"cf-protection-branch".as_ptr().cast(),
@@ -310,7 +311,7 @@ pub unsafe fn create_module<'ll>(
         )
     }
     if let CFProtection::Return | CFProtection::Full = sess.opts.unstable_opts.cf_protection {
-        llvm::LLVMRustAddModuleFlag(
+        llvm::LLVMRustAddModuleFlagU32(
             llmod,
             llvm::LLVMModFlagBehavior::Override,
             c"cf-protection-return".as_ptr().cast(),
@@ -319,7 +320,7 @@ pub unsafe fn create_module<'ll>(
     }
 
     if sess.opts.unstable_opts.virtual_function_elimination {
-        llvm::LLVMRustAddModuleFlag(
+        llvm::LLVMRustAddModuleFlagU32(
             llmod,
             llvm::LLVMModFlagBehavior::Error,
             c"Virtual Function Elim".as_ptr().cast(),
@@ -329,7 +330,7 @@ pub unsafe fn create_module<'ll>(
 
     // Set module flag to enable Windows EHCont Guard (/guard:ehcont).
     if sess.opts.unstable_opts.ehcont_guard {
-        llvm::LLVMRustAddModuleFlag(
+        llvm::LLVMRustAddModuleFlagU32(
             llmod,
             llvm::LLVMModFlagBehavior::Warning,
             c"ehcontguard".as_ptr() as *const _,
@@ -354,6 +355,24 @@ pub unsafe fn create_module<'ll>(
         llvm::LLVMMDNodeInContext(llcx, &name_metadata, 1),
     );
 
+    // Embed target-abi into bitcode for rv64gc when plugin-lto is enabled
+    // Relevant:
+    // https://discourse.llvm.org/t/encode-target-abi-into-llvm-bitcode-for-lto/54116
+    // https://internals.rust-lang.org/t/per-target-llvm-module-flags/12023
+    if sess.opts.cg.linker_plugin_lto.enabled() {
+        let TargetTriple::TargetTriple(ref triple) = sess.opts.target_triple else {
+            panic!("Unexpected TargetTriple::TargetJson")
+        };
+        if triple == "riscv64gc-unknown-linux-gnu" {
+            llvm::LLVMRustAddModuleFlagString(
+                llmod,
+                llvm::LLVMModFlagBehavior::Error,
+                c"target-abi".as_ptr() as *const _,
+                c"lp64d".as_ptr() as *const _,
+            )
+        }
+    }
+
     // Add module flags specified via -Z llvm_module_flag
     for (key, value, behavior) in &sess.opts.unstable_opts.llvm_module_flag {
         let key = format!("{key}\0");
@@ -369,7 +388,7 @@ pub unsafe fn create_module<'ll>(
             // We already checked this during option parsing
             _ => unreachable!(),
         };
-        llvm::LLVMRustAddModuleFlag(llmod, behavior, key.as_ptr().cast(), *value)
+        llvm::LLVMRustAddModuleFlagU32(llmod, behavior, key.as_ptr().cast(), *value)
     }
 
     llmod
