@@ -324,3 +324,8 @@ impl Drop for OperandBundleDef<'_> {
         }
     }
 }
+
+pub enum LLVMModFlagValue {
+    String(String),
+    U32(u32),
+}

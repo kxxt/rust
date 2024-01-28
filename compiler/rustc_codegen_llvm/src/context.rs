@@ -30,6 +30,7 @@ use rustc_span::Span;
 use rustc_target::abi::{
     call::FnAbi, HasDataLayout, PointeeInfo, Size, TargetDataLayout, VariantIdx,
 };
+use rustc_target::spec::TargetTriple;
 use rustc_target::spec::{HasTargetSpec, RelocModel, Target, TlsModel};
 use smallvec::SmallVec;
 
@@ -353,6 +354,24 @@ pub unsafe fn create_module<'ll>(
         c"llvm.ident".as_ptr(),
         llvm::LLVMMDNodeInContext(llcx, &name_metadata, 1),
     );
+
+    // Embed target-abi into bitcode for rv64gc when plugin-lto is enabled
+    // Relevant:
+    // https://discourse.llvm.org/t/encode-target-abi-into-llvm-bitcode-for-lto/54116
+    // https://internals.rust-lang.org/t/per-target-llvm-module-flags/12023
+    if sess.opts.cg.linker_plugin_lto.enabled() {
+        let TargetTriple::TargetTriple(ref triple) = sess.opts.target_triple else {
+            panic!("Unexpected TargetTriple::TargetJson")
+        };
+        if triple == "riscv64gc-unknown-linux-gnu" {
+            llvm::LLVMRustAddModuleFlagString(
+                llmod,
+                llvm::LLVMModFlagBehavior::Error,
+                c"target-abi".as_ptr() as *const _,
+                c"lp64d".as_ptr() as *const _,
+            )
+        }
+    }
 
     // Add module flags specified via -Z llvm_module_flag
     for (key, value, behavior) in &sess.opts.unstable_opts.llvm_module_flag {
