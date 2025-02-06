@@ -1039,6 +1039,7 @@ impl<'a, 'tcx> CrateLoader<'a, 'tcx> {
             // attribute.
             if !attr::contains_name(&krate.attrs, sym::default_lib_allocator)
                 && !self.cstore.iter_crate_data().any(|(_, data)| data.has_default_lib_allocator())
+                && !self.crate_types().contains(&CrateType::Dylib)
             {
                 self.dcx().emit_err(errors::GlobalAllocRequired);
             }
