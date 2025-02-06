@@ -63,12 +63,10 @@ fn verify(tcx: TyCtxt<'_>, items: &lang_items::LanguageItems) {
     // We only need to check for the presence of weak lang items if we're
     // emitting something that's not an rlib.
     let needs_check = tcx.crate_types().iter().any(|kind| match *kind {
-        CrateType::Dylib
-        | CrateType::ProcMacro
-        | CrateType::Cdylib
-        | CrateType::Executable
-        | CrateType::Staticlib => true,
-        CrateType::Rlib => false,
+        CrateType::ProcMacro | CrateType::Cdylib | CrateType::Executable | CrateType::Staticlib => {
+            true
+        }
+        CrateType::Dylib | CrateType::Rlib => false,
     });
     if !needs_check {
         return;
