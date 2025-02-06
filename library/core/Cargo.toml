@@ -12,6 +12,7 @@ autobenches = false
 edition = "2021"
 
 [lib]
+crate-type = ["rlib", "dylib"]
 test = false
 bench = false
 

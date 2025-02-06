@@ -9,6 +9,7 @@ edition = "2021"
 
 [lib]
 path = "lib.rs"
+crate-type = ["rlib", "dylib"]
 
 [dependencies]
 core = { path = "../core" }

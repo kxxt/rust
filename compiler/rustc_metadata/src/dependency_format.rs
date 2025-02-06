@@ -309,6 +309,7 @@ fn add_library(
             // This error is probably a little obscure, but I imagine that it
             // can be refined over time.
             if link2 != link || link == RequireStatic {
+                eprintln!("For crate {} existing linkage is {:?}, but new linkage requires conflicting {:?}", tcx.crate_name(cnum), link2, link);
                 let linking_to_rustc_driver = tcx.sess.psess.unstable_features.is_nightly_build()
                     && tcx.crates(()).iter().any(|&cnum| tcx.crate_name(cnum) == sym::rustc_driver);
                 tcx.dcx().emit_err(CrateDepMultiple {
